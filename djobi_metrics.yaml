@@ -1,0 +1,99 @@
+---
+- name: Deploy Djobi metrics
+  hosts: 127.0.0.1
+  connection: local
+  # remote_user: user
+  # become: yes
+  # become_method: sudo
+  vars:
+    helan_product:
+      name: djobi-metrics
+      dir: djobi_metrics
+
+    ingress_domain_prefix: djobi-metrics
+
+    elk:
+      helm_version: 7.8.1
+      version: 7.8.1
+      flavor: ""
+
+  tasks:
+    - name: Build, install elasticsearch
+      include_role:
+        name: helan
+      tags:
+      - elasticsearch
+      - all
+      vars:
+        helan_component:
+          name: elasticsearch
+          fullname: "{{helan_product.name}}-elasticsearch"
+          build_dir: "{{build_dir}}/{{helan_product.dir}}/elasticsearch"
+          config:
+            replicas: 3
+            clusterName: "{{ helan_product.name }}"
+            clientNodeGroup: "es"
+            hasMasterGroup: false
+            storage:
+              size: "20Gi"
+            resources:
+              heap: "1G"
+              memory: "2Gi"
+              cpu: "1"
+            limits:
+              memory: "4Gi"
+              cpu: "2"
+            ingress:
+              host: "{{ingress_domain_prefix}}-es.{{ingress_domain_suffix}}"
+              certif:
+                name: "{{helan_product.name}}-elasticsearch-ssl"
+          chart:
+            name: "elastic/elasticsearch"
+            version: "{{ elk.helm_version }}"
+
+    - name: Build, install kibana
+      include_role:
+        name: helan
+      tags:
+      - kibana
+      - all
+      vars:
+        helan_component:
+          name: kibana
+          fullname: "{{helan_product.name}}-kibana"
+          build_dir: "{{build_dir}}/{{helan_product.dir}}/kibana"
+          config:
+            elasticsearch:
+              hosts: "{{ helan_product.name }}-es"
+            ingress:
+              host: "{{ingress_domain_prefix}}.{{ingress_domain_suffix}}"
+              certif:
+                name: "{{helan_product.name}}-kibana-ssl"
+          chart:
+            name: "elastic/kibana"
+            version: "{{ elk.helm_version }}"
+
+
+    - name: Build, install APM server
+      include_role:
+        name: helan
+      tags:
+      - apm
+      - all
+      vars:
+        helan_component:
+          name: apm
+          fullname: "{{helan_product.name}}-apm"
+          build_dir: "{{build_dir}}/{{helan_product.dir}}/apm"
+          config:
+            ingress:
+              host: "{{ingress_domain_prefix}}-apm.{{ingress_domain_suffix}}"
+              certif:
+                name: "{{helan_product.name}}-apm-ssl"
+            elasticsearch:
+              host: "{{ helan_product.name }}-es"
+            kibana:
+              host: "{{ helan_product.name }}-kibana"
+          chart:
+            name: "elastic/apm-server"
+            version: "{{ elk.helm_version }}"

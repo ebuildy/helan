@@ -1,0 +1,69 @@
+{% set _image_flavor = "-" ~ elk.flavor if elk.flavor is defined and elk.flavor|length else "" %}
+image: "{{ config.image | default("docker.elastic.co/apm/apm-server" ~ _image_flavor) }}"
+imageTag: "{{ config.imageTag | default(elk.version)}}"
+
+replicaCount: {{ config.replicas | default(1) }}
+
+managedServiceAccount: false
+fullnameOverride: {{ helan_component.fullname }}
+
+serviceAccount: ""
+
+apmConfig:
+  apm-server.yml: |
+    logging:
+      level: debug
+      to_files: false
+      to_stderr: true
+    apm-server:
+      host: "0.0.0.0:8200"
+      kibana:
+        enabled: true
+        host: "http://{{ config.kibana.host }}:5601"
+      rum:
+        enabled: false
+    queue: {}
+    max_procs: 2
+    output:
+      file:
+        enabled: false
+      elasticsearch:
+        enabled: true
+        hosts: ["http://{{ config.elasticsearch.host }}:9200"]
+
+service:
+  enabled: true
+
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+  failureThreshold: 3
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+  failureThreshold: 3
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+
+{% if config.ingress is defined %}
+ingress:
+  enabled: true
+  hosts:
+  - {{ config.ingress.host }}
+{% if ingress_use_tls %}
+  tls:
+  - hosts:
+    - {{ config.ingress.host }}
+    secretName: {{ config.ingress.certif.name }}
+{% endif %}
+{% else %}
+ingress:
+  enabled: false
+{% endif %}

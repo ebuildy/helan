@@ -1,0 +1,12 @@
+---
+- name: 'Create manifest {{ output_file|default("job_generate_cert.yaml") }}'
+  template: src=job_generate_cert.yaml.j2 dest='{{ helan_component.build_dir }}/{{ output_file|default("job_generate_cert.yaml") }}' force=yes
+  tags:
+  - always
+
+- name: 'Apply kubernetes manifest'
+  shell: 'kubectl apply -f {{ helan_component.build_dir }}/{{ output_file|default("job_generate_cert.yaml") }}'
+  tags:
+  - deploy_install
+  - deploy_update
+  - never

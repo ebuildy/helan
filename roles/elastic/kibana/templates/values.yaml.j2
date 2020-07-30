@@ -1,0 +1,79 @@
+{% set _image_flavor = "-" ~ elk.flavor if elk.flavor is defined and elk.flavor|length else "" %}
+image: "{{ config.image | default("docker.elastic.co/kibana/kibana" ~ _image_flavor) }}"
+imageTag: "{{ config.imageTag | default(elk.version)}}"
+
+replicas: 1
+
+elasticsearchHosts: "http://{{ config.elasticsearch.hosts }}:9200"
+
+fullnameOverride: {{ helan_component.fullname }}
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "500Mi"
+  limits:
+    cpu: "1000m"
+    memory: "2Gi"
+
+kibanaConfig:
+  kibana.yml: |
+    {% if config.elasticsearch.config is defined
+      and config.elasticsearch.config.xpack is defined
+      and config.elasticsearch.config.xpack.security is defined
+      and config.elasticsearch.config.xpack.security.enabled %}
+    xpack:
+      security:
+        enabled: true
+
+    {% endif %}
+
+    csp:
+      strict: false
+
+    logging:
+      quiet: false
+
+    vega:
+      enableExternalUrls: true
+
+    status:
+      allowAnonymous: true
+
+{% if config.elasticsearch.config is defined
+and config.elasticsearch.config.xpack is defined
+and config.elasticsearch.config.xpack.security is defined
+and config.elasticsearch.config.xpack.security.enabled %}
+extraEnvs:
+- name: 'ELASTICSEARCH_USERNAME'
+  valueFrom:
+    secretKeyRef:
+      name: {{ component_name }}-elastic-credentials
+      key: username
+- name: 'ELASTICSEARCH_PASSWORD'
+  valueFrom:
+    secretKeyRef:
+      name: {{ component_name }}-elastic-credentials
+      key: password
+- name: 'KIBANA_USERNAME'
+  valueFrom:
+    secretKeyRef:
+      name: {{ component_name }}-kibana-credentials
+      key: username
+- name: 'KIBANA_PASSWORD'
+  valueFrom:
+    secretKeyRef:
+      name: {{ component_name }}-kibana-credentials
+      key: password
+{% endif %}
+
+ingress:
+  enabled: true
+  hosts:
+  - {{ config.ingress.host }}
+{% if ingress_use_tls %}
+  tls:
+  - hosts:
+    - {{ config.ingress.host }}
+    secretName: {{ config.ingress.certif.name }}
+{% endif %}

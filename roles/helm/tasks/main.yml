@@ -1,0 +1,37 @@
+---
+- set_fact:
+    helm_default:
+      chart: ""
+      chart_version: ""
+      values_file: "{{ helan_component.build_dir }}/values.yaml"
+      release_name: "{{ helan_component.fullname }}"
+      debug_templates_dir: "{{helan_component.build_dir}}/_helm_templates"
+  tags: ["always"]
+
+- set_fact:
+    my_helm: "{{ helm_default | combine(helm) }}"
+  tags: ["always"]
+
+- name: "Build template for debug purposes, in {{ my_helm.debug_templates_dir }}"
+  shell: "helm template {{ my_helm.release_name }} {{ my_helm.chart.name }} --values={{ my_helm.values_file }} --dry-run --output-dir={{ my_helm.debug_templates_dir }}"
+  tags:
+  - debug
+
+- name: Installing helm recipe
+  shell: "helm install {{ my_helm.release_name }} {{ my_helm.chart.name }} --values={{ my_helm.values_file }} {% if my_helm.chart.version is defined %}--version={{ my_helm.chart.version }}{% endif %}"
+  register: ps
+  tags:
+  - deploy_install
+  - never
+
+- name: Update helm recipe
+  shell: "helm upgrade {{ my_helm.release_name }} {{ my_helm.chart.name }} --values={{ my_helm.values_file }} {% if my_helm.chart.version is defined %}--version={{ my_helm.chart.version }}{% endif %}"
+  register: ps
+  tags:
+  - deploy_update
+  - never
+
+- debug: var=ps.stdout_lines
+  tags:
+  - deploy_update
+  - never

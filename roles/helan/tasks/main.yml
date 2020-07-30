@@ -1,0 +1,32 @@
+---
+
+- name: Ensures build dir exists
+  file: path={{helan_component.build_dir}} state="{{ item }}"
+  loop:
+  - absent
+  - directory
+  tags: ["always"]
+
+- name: Build values.yaml
+  template:
+    src: "../{{ helan_component.chart.name }}/templates/values.yaml.j2"
+    dest: "{{helan_component.build_dir}}/values.yaml"
+    force: yes
+  vars:
+  - config: "{{ helan_component.config }}"
+  tags: ["always"]
+
+- include_role:
+    name: ssl
+  when: ingress_use_tls and helan_component.config.ingress.host|length
+  vars:
+    cert_name: "{{helan_component.config.ingress.certif.name}}"
+    cert_cname: "{{helan_component.config.ingress.host}}"
+  tags: ["always", "ssl"]
+
+- include_role:
+    name: helm
+  vars:
+    helm:
+      chart: "{{ helan_component.chart }}"
+  tags: ["always", "helm"]
