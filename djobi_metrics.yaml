@@ -32,7 +32,7 @@
           config:
             replicas: 3
             clusterName: "{{ helan_product.name }}"
-            clientNodeGroup: "es"
+            nodeGroup: "es"
             hasMasterGroup: false
             storage:
               size: "20Gi"

@@ -31,7 +31,16 @@
   - deploy_update
   - never
 
+- name: Remove helm recipe
+  shell: "helm delete {{ my_helm.release_name }}"
+  register: ps
+  tags:
+  - deploy_delete
+  - never
+
 - debug: var=ps.stdout_lines
   tags:
+  - deploy_update
+  - deploy_delete
   - deploy_update
   - never

@@ -1,0 +1,136 @@
+---
+- name: Deploy consolidation
+  hosts: 127.0.0.1
+  connection: local
+  # remote_user: user
+  # become: yes
+  # become_method: sudo
+  vars:
+    helan_product:
+      name: conso
+      dir: conso
+
+    ingress_domain_prefix: conso
+
+    elk:
+      helm_version: 7.8.1
+      version: 7.8.1
+      flavor: ""
+
+    config_elasticsearch_common: &config_elasticsearch_common
+      keystore:
+        secrets:
+        - "{{ helan_product.name }}-elasticsearch-keystore"
+      image: "{{ registry_gitlab.host }}/product/analytic/docker/elasticsearch/elasticsearch"
+      imagePullSecret: "{{ registry_gitlab.secret }}"
+      clusterName: "{{ helan_product.name }}-es"
+      config_elasticsearch:
+        s3.client.default.endpoint: "{{ backup_elasticsearch.endpoint }}"
+        s3.client.default.protocol: HTTPS
+
+  tasks:
+    - name: Setup elasticsearch keystore, used for snapshot
+      tags:
+      - never
+      - keystore
+      k8s:
+        state: present
+        validate_certs: false
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            namespace: "{{ k8s.namespace }}"
+            name: "{{ helan_product.name }}-elasticsearch-keystore"
+          labels:
+            org.helan.product: "{{ helan_product.name }}"
+          type: Opaque
+          data:
+            s3.client.default.access_key: "{{ backup_elasticsearch.access_key }}"
+            s3.client.default.secret_key: "{{ backup_elasticsearch.secret_key }}"
+            s3.client.unsecure.access_key: "{{ backup_elasticsearch.access_key }}"
+            s3.client.unsecure.secret_key: "{{ backup_elasticsearch.secret_key }}"
+
+    - name: Build, install elasticsearch master nodes
+      include_role:
+        name: helan
+      tags:
+      - elasticsearch_master
+      - elasticsearch
+      - all
+      vars:
+        helan_component:
+          name: elasticsearch_master
+          fullname: "{{helan_product.name}}-elasticsearch-master"
+          build_dir: "{{build_dir}}/{{helan_product.dir}}/elasticsearch_master"
+          config:
+            <<: *config_elasticsearch_common
+            role: master
+            replicas: 3
+            nodeGroup: "master"
+            resources:
+              heap: "6G"
+              memory: "6Gi"
+              cpu: "1"
+              limits:
+                memory: "12Gi"
+                cpu: "2"
+            ingress:
+              host: "{{ingress_domain_prefix}}-es.{{ingress_domain_suffix}}"
+              certif:
+                name: "{{helan_product.name}}-elasticsearch-ssl"
+          chart:
+            name: "elastic/elasticsearch"
+            version: "{{ elk.helm_version }}"
+
+    - name: Build, install elasticsearch data nodes
+      include_role:
+        name: helan
+      tags:
+      - elasticsearch_data
+      - elasticsearch
+      - all
+      vars:
+        helan_component:
+          name: elasticsearch_data
+          fullname: "{{helan_product.name}}-elasticsearch-data"
+          build_dir: "{{build_dir}}/{{helan_product.dir}}/elasticsearch_data"
+          config:
+            <<: *config_elasticsearch_common
+            role: data
+            replicas: 3
+            nodeGroup: "data"
+            storage:
+              size: "40Gi"
+            resources:
+              heap: "6G"
+              memory: "8Gi"
+              cpu: "2"
+              limits:
+                memory: "10Gi"
+                cpu: "2"
+          chart:
+            name: "elastic/elasticsearch"
+            version: "{{ elk.helm_version }}"
+
+    - name: Build, install kibana
+      include_role:
+        name: helan
+      tags:
+      - kibana
+      - all
+      vars:
+        helan_component:
+          name: kibana
+          fullname: "{{helan_product.name}}-kibana"
+          build_dir: "{{build_dir}}/{{helan_product.dir}}/kibana"
+          config:
+            elasticsearch:
+              hosts: "{{ helan_product.name }}-es-master"
+            ingress:
+              host: "{{ingress_domain_prefix}}.{{ingress_domain_suffix}}"
+              certif:
+                name: "{{helan_product.name}}-kibana-ssl"
+          chart:
+            name: "elastic/kibana"
+            version: "{{ elk.helm_version }}"

@@ -2,6 +2,12 @@
 image: "{{ config.image | default("docker.elastic.co/elasticsearch/elasticsearch" ~ _image_flavor) }}"
 imageTag: "{{ config.imageTag | default(elk.version)}}"
 
+{% if config.imagePullSecret is defined %}
+imagePullPolicy: Always
+imagePullSecrets:
+- name: "{{ config.imagePullSecret }}"
+{% endif %}
+
 {% set config_role = config.role|default("") %}
 
 labels:
@@ -11,13 +17,7 @@ labels:
 replicas: {{ config.replicas | default(1) }}
 
 clusterName: {{ config.clusterName }}
-nodeGroup: {{ "master" if config_role == "master" else config.clientNodeGroup }}
-
-{% if config.hasMasterGroup %}
-masterService: {{ config.clusterName }}-master
-{% else %}
-masterService: {{ config.clusterName }}-{{ config.clientNodeGroup }}
-{% endif %}
+nodeGroup: {{ "master" if config_role == "master" else config.nodeGroup }}
 
 {% if config.resources.heap is defined %}
 esJavaOpts: "-Xmx{{ config.resources.heap }} -Xms{{ config.resources.heap }}"
@@ -28,11 +28,11 @@ resources:
   requests:
     memory: "{{ config.resources.memory }}"
     cpu: "{{ config.resources.cpu }}"
-  {% if config.resources.limits is defined %}
+{% if config.resources.limits is defined %}
   limits:
     memory: "{{ config.resources.limits.memory }}"
     cpu: "{{ config.resources.limits.cpu }}"
-  {% endif %}
+{% endif %}
 {% endif %}
 
 {% if config.config is defined
@@ -108,6 +108,12 @@ ingress:
 #      type: single-node
 #      seed_hosts: ""
 
+{% if config.config_elasticsearch is defined %}
+esConfig:
+  elasticsearch.yml: |
+    {{ config.config_elasticsearch | to_nice_yaml | indent(4) }}
+{% endif %}
+
 
 {% if config.storage is defined %}
 volumeClaimTemplate:
@@ -119,6 +125,13 @@ volumeClaimTemplate:
 {% else %}
 persistence:
   enabled: false
+{% endif %}
+
+{% if config.keystore is defined %}
+keystore:
+{% for secret in config.keystore.secrets -%}
+- secretName: {{ secret }}
+{% endfor -%}
 {% endif %}
 
 maxUnavailable: 2

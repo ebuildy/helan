@@ -18,9 +18,9 @@
 
 - include_role:
     name: ssl
-  when: ingress_use_tls and helan_component.config.ingress.host|length
+  when: ingress_use_tls and helan_component.config.ingress.host is defined and helan_component.config.ingress.host|length
   vars:
-    cert_name: "{{helan_component.config.ingress.certif.name}}"
+    cert_name: "{{helan_component.config.ingress.certif.name}}" # @todo > should be dynamic
     cert_cname: "{{helan_component.config.ingress.host}}"
   tags: ["always", "ssl"]
 

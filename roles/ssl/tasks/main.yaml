@@ -1,11 +1,82 @@
 ---
-- name: 'Create manifest {{ output_file|default("job_generate_cert.yaml") }}'
-  template: src=job_generate_cert.yaml.j2 dest='{{ helan_component.build_dir }}/{{ output_file|default("job_generate_cert.yaml") }}' force=yes
-  tags:
-  - always
 
 - name: 'Apply kubernetes manifest'
-  shell: 'kubectl apply -f {{ helan_component.build_dir }}/{{ output_file|default("job_generate_cert.yaml") }}'
+  k8s:
+    state: present
+    validate_certs: false
+    definition:
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        annotations:
+        name: "{{ cert_name }}"
+        namespace: "{{ k8s.namespace }}"
+      spec:
+        activeDeadlineSeconds: 300
+        backoffLimit: 6
+        completions: 1
+        parallelism: 1
+        ttlSecondsAfterFinished: 100
+        template:
+          spec:
+            automountServiceAccountToken: true
+            containers:
+            - command:
+              - /create_certs.sh
+              env:
+              - name: CERT_NAME
+                value: "{{ cert_name }}"
+              - name: CERTREQ_CNAME
+                value: "{{ cert_cname }}"
+              - name: CERTREQ_SAN
+                value: "{{ cert_cname }}"
+              - name: MY_POD_SERVICE_ACCOUNT
+                valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: spec.serviceAccountName
+              - name: CERTREQ_DAYS
+                value: "10000"
+              - name: TLS_SECRET_NAME
+                value: "{{ cert_name }}"
+              - name: CERTREQ_COUNTRY
+                value: FR
+              - name: CERTREQ_STATE
+                value: Paris
+              - name: CERTREQ_LOCATION
+                value: Paris
+              - name: CERTREQ_ORGANIZATION
+                value: Qwant
+              - name: CERTREQ_EMAIL
+                value: infra@qwant.com
+              - name: FORCE_GENERATION
+                value: "1"
+              - name: OBJECTS_CREATED_TARGET_NS
+                value: "{{ k8s.namespace }}"
+              - name: EMBED_SIGNER_CERT
+                value: "1"
+              - name: ALL_IN_CERT_FILE
+                value: "0"
+              - name: SECRET_KEY_CERT
+                value: tls.crt
+              - name: SECRET_KEY_KEY
+                value: tls.key
+              image: djnos/k8s-srv-cert-creation:14
+              imagePullPolicy: IfNotPresent
+              name: main
+              volumeMounts:
+              - mountPath: /wkd
+                name: workingdir
+            dnsPolicy: ClusterFirst
+            restartPolicy: OnFailure
+            schedulerName: default-scheduler
+            securityContext: {}
+            serviceAccount: server-certs-admin
+            serviceAccountName: server-certs-admin
+            terminationGracePeriodSeconds: 30
+            volumes:
+            - emptyDir: {}
+              name: workingdir
   tags:
   - deploy_install
   - deploy_update
