@@ -134,3 +134,36 @@
           chart:
             name: "elastic/kibana"
             version: "{{ elk.helm_version }}"
+
+    # https://github.com/helm/charts/tree/master/stable/elasticsearch-exporter
+    - name: Build, install elasticsearch exporter
+      include_role:
+        name: helan
+      tags:
+      - elasticsearch_exporter
+      - all
+      vars:
+        helan_component:
+          name: es-exporter
+          fullname: "{{helan_product.name}}-es-exporter"
+          build_dir: "{{build_dir}}/{{helan_product.dir}}/es-exporter"
+          values_yaml:
+            log:
+              level: info
+            replicaCount: 2
+            fullnameOverride: "{{helan_product.name}}-es-exporter"
+            es:
+              uri: "http://{{ helan_product.name }}-es-master:9200"
+              all: true
+              indices: true
+              indices_settings: false
+              shards: false
+              snapshots: true
+              cluster_settings: false
+            serviceMonitor:
+              enabled: true
+              interval: 30s
+              scrapeTimeout: 20s
+          chart:
+            name: "stable/elasticsearch-exporter"
+            version: "3.6.0"

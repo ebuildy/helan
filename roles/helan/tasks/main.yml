@@ -5,16 +5,28 @@
   loop:
   - absent
   - directory
-  tags: ["always"]
+  tags: ["build","always"]
 
 - name: Build values.yaml
+  when:  helan_component.config is defined
   template:
     src: "../{{ helan_component.chart.name }}/templates/values.yaml.j2"
     dest: "{{helan_component.build_dir}}/values.yaml"
     force: yes
   vars:
   - config: "{{ helan_component.config }}"
-  tags: ["always"]
+  - extra_values: "{{ helan_component.values_yaml }}"
+  tags: ["build","always"]
+
+- name: Build values.yaml
+  when:  helan_component.values_yaml is defined
+  template:
+    src: "values.yaml.j2"
+    dest: "{{helan_component.build_dir}}/values.yaml"
+    force: yes
+  vars:
+  - values: "{{ helan_component.values_yaml }}"
+  tags: ["build","always"]
 
 - include_role:
     name: ssl

@@ -97,3 +97,94 @@
           chart:
             name: "elastic/apm-server"
             version: "{{ elk.helm_version }}"
+
+    - name: Build, install metricbeat (disabled)
+      when: false # Disable
+      include_role:
+        name: helan
+      tags:
+      - metricbeat
+      - never
+      vars:
+        helan_component:
+          name: metricbeat
+          fullname: "{{helan_product.name}}-metricbeat"
+          build_dir: "{{build_dir}}/{{helan_product.dir}}/metricbeat"
+          values_yaml:
+            managedServiceAccount: false
+            imageTag: "{{ elk.version }}"
+            fullnameOverride: "{{helan_product.name}}-metricbeat"
+            serviceAccount: "default"
+            kube_state_metrics:
+              enabled: false
+            daemonset:
+              enabled: false
+              metricbeatConfig: false
+            deployment:
+              enabled: true
+              metricbeatConfig:
+                metricbeat.yml: |
+                  logging.level: debug
+                  setup.dashboards.enabled: true
+                  setup.kibana:
+                    host: "{{ helan_product.name }}-kibana"
+                    protocol: "http"
+                    space.id: "metrics"
+                  metricbeat.modules:
+                  - module: elasticsearch
+                    metricsets:
+                    - index
+                    period: 10s
+                    hosts: ["http://conso-es-master:9200"]
+                    #username: "user"
+                    #password: "secret"
+                    xpack.enabled: false
+                  - module: kubernetes
+                    enabled: false
+                    metricsets:
+                      - state_node
+                      - state_deployment
+                      - state_replicaset
+                      - state_pod
+                      - state_container
+                    period: 10s
+                    hosts: ["${KUBE_STATE_METRICS_HOSTS}"]
+                  output.elasticsearch:
+                    hosts: "{{ helan_product.name }}-es:9200"
+
+          chart:
+            name: "elastic/metricbeat"
+            version: "{{ elk.helm_version }}"
+
+    # https://github.com/helm/charts/tree/master/stable/elasticsearch-exporter
+    - name: Build, install elasticsearch exporter
+      include_role:
+        name: helan
+      tags:
+      - elasticsearch_exporter
+      - all
+      vars:
+        helan_component:
+          name: es-exporter
+          fullname: "{{helan_product.name}}-es-exporter"
+          build_dir: "{{build_dir}}/{{helan_product.dir}}/es-exporter"
+          values_yaml:
+            log:
+              level: info
+            replicaCount: 1
+            fullnameOverride: "{{helan_product.name}}-es-exporter"
+            es:
+              uri: "http://{{ helan_product.name }}-es:9200"
+              all: false
+              indices: true
+              indices_settings: false
+              shards: false
+              snapshots: false
+              cluster_settings: false
+            serviceMonitor:
+              enabled: true
+              interval: 60s
+              scrapeTimeout: 20s
+          chart:
+            name: "stable/elasticsearch-exporter"
+            version: "3.6.0"
